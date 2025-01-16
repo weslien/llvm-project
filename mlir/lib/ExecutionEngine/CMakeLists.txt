@@ -2,6 +2,8 @@
 # is a big dependency which most don't need.
 
 set(LLVM_OPTIONAL_SOURCES
+  ArmRunnerUtils.cpp
+  ArmSMEStubs.cpp
   AsyncRuntime.cpp
   CRunnerUtils.cpp
   CudaRuntimeWrappers.cpp
@@ -12,6 +14,7 @@ set(LLVM_OPTIONAL_SOURCES
   RunnerUtils.cpp
   OptUtils.cpp
   JitRunner.cpp
+  SpirvCpuRuntimeWrappers.cpp
   SyclRuntimeWrappers.cpp
   )
 
@@ -95,6 +98,29 @@ add_mlir_library(MLIRExecutionEngine
   MLIRTargetLLVMIRExport
   )
 
+if(LLVM_BUILD_LLVM_DYLIB AND NOT (WIN32 OR MINGW OR CYGWIN)) # Does not build on windows currently, see #106859
+  # Build a shared library for the execution engine. Some downstream projects
+  # use this library to build their own CPU runners while preserving dynamic
+  # linkage.
+  add_mlir_library(MLIRExecutionEngineShared
+    ExecutionEngine.cpp
+    SHARED
+
+    EXCLUDE_FROM_LIBMLIR
+
+    ADDITIONAL_HEADER_DIRS
+    ${MLIR_MAIN_INCLUDE_DIR}/mlir/ExecutionEngine
+
+    # Ensures that all necessary dependencies are resolved.
+    DEPENDS
+    MLIRExecutionEngine
+
+    LINK_LIBS PUBLIC
+    LLVM
+    MLIR
+    )
+endif()
+
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 add_mlir_library(MLIRJitRunner
   JitRunner.cpp
@@ -156,6 +182,9 @@ if(LLVM_ENABLE_PIC)
     RunnerUtils.cpp
 
     EXCLUDE_FROM_LIBMLIR
+
+    LINK_LIBS PUBLIC
+    mlir_float16_utils
   )
   target_compile_definitions(mlir_runner_utils PRIVATE mlir_runner_utils_EXPORTS)
 
@@ -176,6 +205,15 @@ if(LLVM_ENABLE_PIC)
     # FIXME: Add a similar fix for Windows.
     target_link_options(mlir_async_runtime PRIVATE "-Wl,-exclude-libs,ALL")
   endif()
+
+  add_mlir_library(mlir_arm_sme_abi_stubs
+    SHARED
+    ArmSMEStubs.cpp)
+  target_compile_definitions(mlir_arm_sme_abi_stubs PRIVATE mlir_arm_sme_abi_stubs_EXPORTS)
+
+  add_mlir_library(mlir_arm_runner_utils
+    SHARED
+    ArmRunnerUtils.cpp)
 
   if(MLIR_ENABLE_CUDA_RUNNER)
     # Configure CUDA support. Using check_language first allows us to give a
@@ -363,5 +401,18 @@ if(LLVM_ENABLE_PIC)
     target_link_libraries(mlir_sycl_runtime PRIVATE LevelZero::LevelZero SyclRuntime::SyclRuntime)
 
     set_property(TARGET mlir_sycl_runtime APPEND PROPERTY BUILD_RPATH "${LevelZero_LIBRARIES_DIR}" "${SyclRuntime_LIBRARIES_DIR}")
+  endif()
+
+  if(MLIR_ENABLE_SPIRV_CPU_RUNNER)
+    add_mlir_library(mlir_spirv_cpu_runtime
+      SHARED
+      SpirvCpuRuntimeWrappers.cpp
+
+      EXCLUDE_FROM_LIBMLIR
+    )
+
+    target_compile_definitions(mlir_spirv_cpu_runtime
+      PRIVATE
+      mlir_spirv_cpu_runtime_EXPORTS)
   endif()
 endif()

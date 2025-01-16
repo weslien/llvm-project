@@ -491,20 +491,19 @@ exit:
   ret void
 }
 
-define void @test_11() {
+define void @test_11(i1 %arg) {
 ; CHECK-LABEL: @test_11(
 ; CHECK-NEXT:    br label [[BB1:%.*]]
 ; CHECK:       bb1:
-; CHECK-NEXT:    br i1 undef, label [[BB2:%.*]], label [[BB6:%.*]]
+; CHECK-NEXT:    br i1 [[ARG:%.*]], label [[BB2:%.*]], label [[BB6:%.*]]
 ; CHECK:       bb2:
-; CHECK-NEXT:    br i1 undef, label [[BB3:%.*]], label [[BB4:%.*]]
+; CHECK-NEXT:    br i1 [[ARG]], label [[BB3:%.*]], label [[BB4:%.*]]
 ; CHECK:       bb3:
 ; CHECK-NEXT:    br label [[BB4]]
 ; CHECK:       bb4:
 ; CHECK-NEXT:    br label [[BB6]]
 ; CHECK:       bb5:
-; CHECK-NEXT:    [[_TMP24:%.*]] = icmp slt i16 poison, 0
-; CHECK-NEXT:    br i1 [[_TMP24]], label [[BB5:%.*]], label [[BB5]]
+; CHECK-NEXT:    br i1 poison, label [[BB5:%.*]], label [[BB5]]
 ; CHECK:       bb6:
 ; CHECK-NEXT:    br i1 false, label [[BB1]], label [[BB7:%.*]]
 ; CHECK:       bb7:
@@ -514,11 +513,11 @@ define void @test_11() {
 
 bb1:                                              ; preds = %bb6, %0
   %e.5.0 = phi i32 [ 0, %0 ], [ %_tmp32, %bb6 ]
-  br i1 undef, label %bb2, label %bb6
+  br i1 %arg, label %bb2, label %bb6
 
 bb2:                                              ; preds = %bb1
   %_tmp15 = trunc i32 %e.5.0 to i16
-  br i1 undef, label %bb3, label %bb4
+  br i1 %arg, label %bb3, label %bb4
 
 bb3:                                              ; preds = %bb2
   br label %bb4

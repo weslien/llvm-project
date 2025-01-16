@@ -2,7 +2,6 @@
 Test that memory tagging features work with Linux core files.
 """
 
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -216,8 +215,7 @@ class AArch64LinuxMTEMemoryTagCoreFileTestCase(TestBase):
         self.expect(
             "bt",
             substrs=[
-                "* thread #1, name = 'a.out.mte', stop reason = signal SIGSEGV: "
-                "sync tag check fault"
+                "* thread #1, name = 'a.out.mte', stop reason = SIGSEGV: sync tag check fault (fault address: 0xffff82c74010)"
             ],
         )
 
@@ -235,4 +233,18 @@ class AArch64LinuxMTEMemoryTagCoreFileTestCase(TestBase):
         # * Allowed tags value of 0xFFFF, shifted up by 3 resulting in 0x7fff8.
         # * Bit 1 set to enable synchronous tag faults.
         # * Bit 0 set to enable the tagged address ABI.
-        self.expect("register read mte_ctrl", substrs=["mte_ctrl = 0x000000000007fffb"])
+        expected = ["mte_ctrl = 0x000000000007fffb"]
+
+        if self.hasXMLSupport():
+            expected.append("(TAGS = 65535, TCF = TCF_SYNC, TAGGED_ADDR_ENABLE = 1)")
+
+        self.expect("register read mte_ctrl", substrs=expected)
+
+        if self.hasXMLSupport():
+            # Should get enumerator descriptions for TCF
+            self.expect(
+                "register info mte_ctrl",
+                substrs=[
+                    "TCF: 0 = TCF_NONE, 1 = TCF_SYNC, 2 = TCF_ASYNC, 3 = TCF_ASYMM"
+                ],
+            )

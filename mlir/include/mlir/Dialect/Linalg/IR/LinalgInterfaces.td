@@ -245,6 +245,18 @@ def LinalgStructuredInterface
     >,
     InterfaceMethod<
       /*desc=*/[{
+        Return true if all loops are parallel.
+      }],
+      /*retTy=*/"bool",
+      /*methodName=*/"isAllParallelLoops",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return getNumParallelLoops() ==  getNumLoops();
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
         Return the dims that are parallel loops.
       }],
       /*retTy=*/"void",
@@ -329,6 +341,18 @@ def LinalgStructuredInterface
     >,
     InterfaceMethod<
       /*desc=*/[{
+        Returns true only if linalgOp takes one input and produces one result.
+      }],
+      /*retTy=*/"bool",
+      /*methodName=*/"isSingleInputOutput",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return $_op.getNumDpsInputs() == 1 && $_op.getNumDpsInits() == 1;
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
         Return true if `opOperand` is an init tensor. This is true when it is
         an output tensor operand whose value is used in the payload region.
       }],
@@ -344,7 +368,7 @@ def LinalgStructuredInterface
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Return the `opOperand` rank or zero for scalars.
+        Return the `opOperand` rank or zero for scalars or vectors not wrapped within a tensor or a memref.
       }],
       /*retTy=*/"int64_t",
       /*methodName=*/"getRank",
@@ -352,9 +376,17 @@ def LinalgStructuredInterface
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         assert(opOperand->getOwner() == this->getOperation());
-        if (auto shapedType =
-              ::llvm::dyn_cast<ShapedType>(opOperand->get().getType()))
+        Type t = opOperand->get().getType();
+        // A VectorType is an elemental type, do not consider its rank for the operand.
+        if (isa<VectorType>(t))
+          return 0;
+        // Tensor and Memref container types have a rank.
+        if (auto shapedType = ::llvm::dyn_cast<ShapedType>(t)) {
+          // Failsafe.
+          assert((isa<MemRefType>(t) || isa<RankedTensorType>(t)) &&
+                 "expected a ranked tensor or memref in LinalgInterface::getRank");
           return shapedType.getRank();
+        }
         return 0;
       }]
     >,
@@ -384,7 +416,8 @@ def LinalgStructuredInterface
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Return the `opOperand` shape or an empty vector for scalars.
+        Return the `opOperand` shape or an empty vector for scalars or vectors
+        not wrapped within a tensor or a memref.
       }],
       /*retTy=*/"ArrayRef<int64_t>",
       /*methodName=*/"getShape",
@@ -392,9 +425,16 @@ def LinalgStructuredInterface
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         assert(opOperand->getOwner() == this->getOperation());
-        if (auto shapedType =
-              ::llvm::dyn_cast<ShapedType>(opOperand->get().getType()))
+        Type t = opOperand->get().getType();
+        // A VectorType is an elemental type, do not consider its rank for the operand.
+        if (isa<VectorType>(t))
+          return {};
+        if (auto shapedType = ::llvm::dyn_cast<ShapedType>(t)) {
+          // Failsafe.
+          assert((isa<MemRefType>(t) || isa<RankedTensorType>(t)) &&
+                 "expected a ranked tensor or memref in LinalgInterface::getRank");
           return shapedType.getShape();
+        }
         return {};
       }]
     >,
@@ -668,6 +708,16 @@ def LinalgStructuredInterface
         return;
       }]
     >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return true if the user has supplied an explicit indexing maps for this op.
+      }],
+      /*retTy=*/"bool",
+      /*methodName=*/"hasUserDefinedMaps",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{ return false; }]
+    >,
     //===------------------------------------------------------------------===//
     // Linalg generalization hooks.
     //===------------------------------------------------------------------===//
@@ -691,7 +741,7 @@ def LinalgStructuredInterface
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         auto maps =  $_op.getIndexingMapsArray();
-        return concatAffineMaps(maps);
+        return concatAffineMaps(maps, $_op.getContext());
       }]
     >,
     InterfaceMethod<

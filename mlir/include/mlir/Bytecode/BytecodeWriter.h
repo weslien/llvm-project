@@ -14,6 +14,7 @@
 #define MLIR_BYTECODE_BYTECODEWRITER_H
 
 #include "mlir/IR/AsmState.h"
+#include "llvm/Config/llvm-config.h" // for LLVM_VERSION_STRING
 
 namespace mlir {
 class DialectBytecodeWriter;
@@ -151,6 +152,9 @@ public:
   //===--------------------------------------------------------------------===//
   // Resources
   //===--------------------------------------------------------------------===//
+
+  /// Set a boolean flag to skip emission of resources into the bytecode file.
+  void setElideResourceDataFlag(bool shouldElideResourceData = true);
 
   /// Attach the given resource printer to the writer configuration.
   void attachResourcePrinter(std::unique_ptr<AsmResourcePrinter> printer);
